@@ -3,31 +3,40 @@
 import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../lib/hooks';
 import { addOrder, cancelOrder, approveOrder } from '../../lib/features/orderSlice';
+import OrderDetails from '../../components/OrderDetails'; // Import the new component
 
 export default function OrdersPage() {
   const dispatch = useAppDispatch();
   const orders = useAppSelector((state) => state.orders.orders);
   
+  // Form State
   const [clientName, setClientName] = useState('');
-  const [amount, setAmount] = useState<string>(''); // Added for completeness
+  const [amount, setAmount] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Panel State
+  const [selectedOrder, setSelectedOrder] = useState<unknown | null>(null);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName) return;
-
     setIsSubmitting(true);
-
     setTimeout(() => {
       dispatch(addOrder({ 
         clientName: clientName,
         amount: Number(amount) || 0 
       }));
-
       setClientName('');
       setAmount('');
       setIsSubmitting(false);
     }, 600);
+  };
+
+  // Helper to open the slide-over
+  const handleRowClick = (order: unknown) => {
+    setSelectedOrder(order);
+    setIsPanelOpen(true);
   };
 
   return (
@@ -85,7 +94,11 @@ export default function OrdersPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {orders.map((order) => (
-              <tr key={order.id} className="text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+              <tr 
+                key={order.id} 
+                onClick={() => handleRowClick(order)} // Click row to open panel
+                className="text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
+              >
                 <td className="px-6 py-4 font-mono font-bold text-blue-600 dark:text-blue-400">#{order.id}</td>
                 <td className="px-6 py-4 text-slate-700 dark:text-slate-200 font-medium">{order.clientName}</td>
                 <td className="px-6 py-4 text-slate-600 dark:text-slate-400">${order.amount.toFixed(2)}</td>
@@ -101,14 +114,20 @@ export default function OrdersPage() {
                 <td className="px-6 py-4 text-right space-x-3">
                   {order.status === 'Pending' && (
                     <button 
-                      onClick={() => dispatch(approveOrder(order.id))}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent opening panel when clicking button
+                        dispatch(approveOrder(order.id));
+                      }}
                       className="text-green-600 hover:text-green-700 font-bold"
                     >
                       Approve
                     </button>
                   )}
                   <button 
-                    onClick={() => dispatch(cancelOrder(order.id))}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent opening panel when clicking button
+                      dispatch(cancelOrder(order.id));
+                    }}
                     className="text-red-500 hover:text-red-600 transition-colors"
                   >
                     Delete
@@ -119,6 +138,13 @@ export default function OrdersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* THE SLIDE-OVER PANEL */}
+      <OrderDetails 
+        order={selectedOrder} 
+        isOpen={isPanelOpen} 
+        onClose={() => setIsPanelOpen(false)} 
+      />
     </div>
   );
 }
