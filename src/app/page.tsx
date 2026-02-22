@@ -1,87 +1,120 @@
 'use client';
 
-import { useAppSelector } from '@/lib/hooks';
-import LowStockAlert from '@/components/LowStockAlert';
+import { useState } from 'react';
+import { useAppSelector, useAppDispatch } from '@/lib/hooks';
+import { addOrder, cancelOrder, approveOrder } from '@/lib/features/orderSlice';
+import OrderDetails from '@/components/OrderDetails';
+import { generateInvoice } from '@/lib/generateInvoice';
 
-export default function Home() {
+export default function OrdersPage() {
+  const dispatch = useAppDispatch();
   const orders = useAppSelector((state) => state.orders.orders);
-  const inventory = useAppSelector((state) => state.inventory.items);
+  
+  const [client, setClient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const pendingOrders = orders.filter(o => o.status === 'Pending').length;
-  const lowStockCount = inventory.filter(i => i.stock < 10).length;
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client || !amount) return;
+    setLoading(true);
+    setTimeout(() => {
+      dispatch(addOrder({ clientName: client, amount: Number(amount) }));
+      setClient(''); setAmount(''); setLoading(false);
+    }, 500);
+  };
+
+  const handleRowClick = (order: any) => {
+    setSelectedOrder(order);
+    setIsPanelOpen(true);
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Morning, Admin</h1>
-        <p className="text-slate-500 dark:text-slate-400 font-medium">CoffeeCorp warehouse overview.</p>
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
+      {/* CREATION FORM */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-blue-100 dark:border-slate-800 shadow-xl shadow-blue-500/5">
+        <h2 className="text-xl font-bold mb-6 dark:text-white">Create Purchase Order</h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input 
+            value={client} 
+            onChange={(e) => setClient(e.target.value)} 
+            placeholder="Client Name" 
+            className="p-3 rounded-xl border dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" 
+            required 
+          />
+          <input 
+            value={amount} 
+            onChange={(e) => setAmount(e.target.value)} 
+            type="number" 
+            placeholder="Amount ($)" 
+            className="p-3 rounded-xl border dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" 
+            required 
+          />
+          <button disabled={loading} className="bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all">
+            {loading ? 'Creating...' : 'Finalize PO'}
+          </button>
+        </form>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="flex-1 space-y-8">
-          {/* STATS GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard title="Pending Orders" value={pendingOrders} color="text-orange-600" />
-            <StatCard title="Inventory Alerts" value={lowStockCount} color="text-red-600" />
-            <StatCard title="Total SKU" value={inventory.length} color="text-blue-600" />
-          </div>
-
-          {/* ANALYTICS CHART */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="font-bold text-slate-800 dark:text-slate-100">Weekly Revenue</h3>
-              <span className="text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">+12%</span>
-            </div>
-            <div className="flex items-end justify-between h-32 gap-3 px-2">
-              {[35, 50, 40, 90, 65, 45, 80].map((h, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
-                  <div className="w-full bg-blue-500/10 dark:bg-blue-500/5 border-t-2 border-blue-500 rounded-t-sm transition-all group-hover:bg-blue-500/30" style={{ height: `${h}%` }} />
-                  <span className="text-[10px] text-slate-400 font-bold">{['M','T','W','T','F','S','S'][i]}</span>
+      {/* ORDERS LIST */}
+      <div className="space-y-4">
+        {orders.map(order => (
+          <div key={order.id}>
+            <div 
+              onClick={() => handleRowClick(order)}
+              className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-sm hover:shadow-md cursor-pointer group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-mono font-bold text-blue-600">#{order.id}</div>
+                <div>
+                  <p className="font-bold dark:text-white">{order.clientName}</p>
+                  <p className="text-sm text-slate-500 font-medium">${order.amount.toFixed(2)}</p>
                 </div>
-              ))}
+              </div>
+              <div className="flex items-center gap-4">
+                <button onClick={(e) => { e.stopPropagation(); generateInvoice(order); }} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition-all">PDF</button>
+                {order.status === 'Pending' && <button onClick={(e) => { e.stopPropagation(); dispatch(approveOrder(order.id)); }} className="text-green-600 font-bold text-sm">Approve</button>}
+                <button onClick={(e) => { e.stopPropagation(); dispatch(cancelOrder(order.id)); }} className="text-red-400 font-bold text-sm">Remove</button>
+              </div>
+            </div>
+
+            {/* INVOICE TEMPLATE (Strict HEX colors) */}
+            <div id={`invoice-${order.id}`} style={{ display: 'none', position: 'absolute', left: '-9999px' }}>
+              <div style={{ width: '700px', padding: '50px', backgroundColor: '#ffffff', color: '#000000', fontFamily: 'sans-serif' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #000000', paddingBottom: '20px', marginBottom: '30px' }}>
+                  <h1 style={{ fontSize: '28px', margin: 0 }}>COFFEE CORP</h1>
+                  <div style={{ textAlign: 'right' }}>
+                    <h2 style={{ fontSize: '18px', margin: 0 }}>INVOICE</h2>
+                    <p style={{ margin: 0 }}>ID: {order.id}</p>
+                  </div>
+                </div>
+                <div style={{ marginBottom: '30px' }}>
+                  <p style={{ fontWeight: 'bold', margin: '0 0 5px 0' }}>Bill To:</p>
+                  <p style={{ fontSize: '20px', margin: 0 }}>{order.clientName}</p>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <tr style={{ backgroundColor: '#eeeeee' }}>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Description</th>
+                    <th style={{ padding: '10px', textAlign: 'right' }}>Total</th>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '15px 10px', borderBottom: '1px solid #eeeeee' }}>Bulk Coffee Wholesale Supply</td>
+                    <td style={{ padding: '15px 10px', borderBottom: '1px solid #eeeeee', textAlign: 'right' }}>${order.amount.toFixed(2)}</td>
+                  </tr>
+                </table>
+                <div style={{ textAlign: 'right', marginTop: '30px' }}>
+                  <p style={{ fontSize: '22px', fontWeight: 'bold' }}>Total: ${order.amount.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* RECENT ACTIVITY */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Recent Orders</h3>
-             </div>
-             <table className="w-full text-left">
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                   {orders.slice(0, 4).map(order => (
-                      <tr key={order.id} className="text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                         <td className="px-6 py-4 font-mono font-bold text-blue-600">#{order.id}</td>
-                         <td className="px-6 py-4 dark:text-slate-300">{order.clientName}</td>
-                         <td className="px-6 py-4 text-right">
-                            <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold dark:text-slate-400">{order.status}</span>
-                         </td>
-                      </tr>
-                   ))}
-                </tbody>
-             </table>
-          </div>
-        </div>
-
-        {/* SIDEBAR */}
-        <div className="w-full lg:w-80 space-y-6">
-          <LowStockAlert />
-          <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/20">
-             <h4 className="font-bold mb-2">Pro Tip</h4>
-             <p className="text-sm text-blue-100 opacity-90 leading-relaxed">Check pending orders daily to maintain a 24-hour shipping turnaround.</p>
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
-  );
-}
 
-function StatCard({ title, value, color }: { title: string; value: number | string; color: string }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-      <p className={`text-4xl font-black mt-2 ${color}`}>{value}</p>
+      <OrderDetails order={selectedOrder} isOpen={isPanelOpen} onClose={() => setIsPanelOpen(false)} />
     </div>
   );
 }
