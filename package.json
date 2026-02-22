@@ -9,7 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "framer-motion": "^12.34.3",
+=======
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.0",
+>>>>>>> 4aa8012 (feat: finalize B2B dashboard with PDF invoices, analytics, and search)
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
